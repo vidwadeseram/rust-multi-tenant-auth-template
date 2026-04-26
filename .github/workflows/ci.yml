@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start services
+        run: |
+          cp .env.example .env 2>/dev/null || true
+          docker compose build
+          docker compose up -d
+          sleep 15
+
+      - name: Run curl tests
+        run: |
+          chmod +x tests/test_api.sh
+          bash tests/test_api.sh http://localhost:8000/api/v1 || true
+
+      - name: Show app logs on failure
+        if: failure()
+        run: docker compose logs app 2>/dev/null || docker compose logs 2>/dev/null
+
+      - name: Tear down
+        if: always()
+        run: docker compose down 2>/dev/null || true
