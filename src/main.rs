@@ -7,7 +7,7 @@ mod routes;
 mod services;
 mod state;
 
-use axum::{Router, middleware::from_fn_with_state};
+use axum::{Router, middleware::from_fn_with_state, routing::get};
 use config::Settings;
 use middleware::{auth::require_auth, tenant::resolve_tenant_context};
 use routes::{admin, auth::auth_routes, health::health_routes, tenant};
@@ -17,6 +17,17 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
+
+async fn openapi_spec() -> impl axum::response::IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        include_str!("../static/openapi.json"),
+    )
+}
+
+async fn swagger_ui() -> impl axum::response::IntoResponse {
+    axum::response::Html(std::include_str!("../static/swagger.html"))
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30,6 +41,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState::new(pool, settings.clone(), tenant_schema_service);
 
     let app = Router::<AppState>::new()
+        .route("/openapi.json", get(openapi_spec))
+        .route("/docs", get(swagger_ui))
         .merge(health_routes())
         .nest("/api/v1/auth", auth_routes(state.clone()))
         .nest("/api/v1/admin", admin::admin_routes().layer(from_fn_with_state(state.clone(), require_auth)))
