@@ -307,7 +307,10 @@ async fn invite_member(
         Err(e) => return AppError::from(e).into_response(),
     }
 
-    let raw_token = generate_token();
+    let raw_token = match generate_token() {
+        Ok(t) => t,
+        Err(e) => return e.into_response(),
+    };
     let token_hash = sha256_hex(raw_token.as_bytes());
     let expires_at = Utc::now() + chrono::Duration::days(7);
 
@@ -436,7 +439,7 @@ fn sha256_hex(input: &[u8]) -> String {
     out
 }
 
-fn generate_token() -> String {
+fn generate_token() -> Result<String, AppError> {
     use rand::TryRng;
     let mut bytes = [0u8; 32];
     // SysRng is the OS RNG in rand 0.10 (renamed from OsRng). If the OS RNG
@@ -444,6 +447,9 @@ fn generate_token() -> String {
     // behaviour which also panicked on failure.
     rand::rngs::SysRng
         .try_fill_bytes(&mut bytes)
-        .expect("OS RNG must be available to generate invitation tokens");
-    base64_url::encode(&bytes)
+        .map_err(|e| {
+            log::error!("OS RNG unavailable, cannot generate token: {e}");
+            AppError::internal("Failed to generate secure token".into())
+        })?;
+    Ok(base64_url::encode(&bytes))
 }
