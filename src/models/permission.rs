@@ -24,34 +24,82 @@ impl Permission {
             .await
     }
 
-    pub async fn find_by_user_id(pool: &PgPool, user_id: Uuid) -> Result<Vec<Self>, sqlx::Error> {
+    pub async fn find_by_user_id(
+        pool: &PgPool,
+        user_id: Uuid,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as::<_, Self>(
             r#"
-            SELECT p.id, p.name, p.description, p.created_at
+            SELECT DISTINCT p.id, p.name, p.description, p.created_at
             FROM permissions p
             JOIN role_permissions rp ON rp.permission_id = p.id
-            JOIN user_roles ur ON ur.role_id = rp.role_id
-            WHERE ur.user_id = $1
+            WHERE rp.role_id = (SELECT role_id FROM users WHERE id = $1)
+               OR EXISTS (
+                    SELECT 1
+                    FROM user_roles ur
+                    WHERE ur.user_id = $1
+                      AND ur.role_id = rp.role_id
+               )
+               OR (
+                    $2::uuid IS NOT NULL
+                    AND EXISTS (
+                        SELECT 1
+                        FROM tenant_members tm
+                        WHERE tm.user_id = $1
+                          AND tm.tenant_id = $2
+                          AND tm.is_active = TRUE
+                          AND tm.role_id = rp.role_id
+                    )
+               )
+            ORDER BY p.name
             "#,
         )
         .bind(user_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await
     }
 
-    pub async fn user_has_permission(pool: &PgPool, user_id: Uuid, permission_name: &str) -> Result<bool, sqlx::Error> {
+    pub async fn user_has_permission(
+        pool: &PgPool,
+        user_id: Uuid,
+        permission_name: &str,
+        tenant_id: Option<Uuid>,
+    ) -> Result<bool, sqlx::Error> {
         let result = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(
-                SELECT 1 FROM permissions p
+                SELECT 1
+                FROM permissions p
                 JOIN role_permissions rp ON rp.permission_id = p.id
-                JOIN user_roles ur ON ur.role_id = rp.role_id
-                WHERE ur.user_id = $1 AND p.name = $2
+                WHERE p.name = $2
+                  AND (
+                        rp.role_id = (SELECT role_id FROM users WHERE id = $1)
+                     OR EXISTS (
+                            SELECT 1
+                            FROM user_roles ur
+                            WHERE ur.user_id = $1
+                              AND ur.role_id = rp.role_id
+                        )
+                     OR (
+                            $3::uuid IS NOT NULL
+                            AND EXISTS (
+                                SELECT 1
+                                FROM tenant_members tm
+                                WHERE tm.user_id = $1
+                                  AND tm.tenant_id = $3
+                                  AND tm.is_active = TRUE
+                                  AND tm.role_id = rp.role_id
+                            )
+                        )
+                  )
             )
             "#,
         )
         .bind(user_id)
         .bind(permission_name)
+        .bind(tenant_id)
         .fetch_one(pool)
         .await?;
         Ok(result)
