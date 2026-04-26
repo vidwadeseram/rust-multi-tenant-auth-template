@@ -71,9 +71,13 @@ impl TokenService {
     }
 
     pub fn hash_token(&self, token: &str) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(token.as_bytes());
-        format!("{:x}", hasher.finalize())
+        let digest = Sha256::digest(token.as_bytes());
+        let mut out = String::with_capacity(digest.len() * 2);
+        for byte in digest.iter() {
+            use std::fmt::Write;
+            let _ = write!(out, "{:02x}", byte);
+        }
+        out
     }
 
     pub fn create_verification_token(

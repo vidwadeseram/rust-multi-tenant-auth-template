@@ -265,9 +265,7 @@ async fn invite_member(
     }
 
     let raw_token = generate_token();
-    let mut hasher = Sha256::new();
-    hasher.update(raw_token.as_bytes());
-    let token_hash = format!("{:x}", hasher.finalize());
+    let token_hash = sha256_hex(raw_token.as_bytes());
     let expires_at = Utc::now() + chrono::Duration::days(7);
 
     match sqlx::query_scalar::<_, Uuid>(
@@ -300,9 +298,7 @@ async fn accept_invitation(
     Path(_tenant_id): Path<Uuid>,
     Json(payload): Json<AcceptInviteReq>,
 ) -> Response {
-    let mut hasher = Sha256::new();
-    hasher.update(payload.token.as_bytes());
-    let token_hash = format!("{:x}", hasher.finalize());
+    let token_hash = sha256_hex(payload.token.as_bytes());
 
     let invitation = match sqlx::query_as::<_, (Uuid, Uuid, Uuid, Option<DateTime<Utc>>, DateTime<Utc>)>(
         r#"SELECT id, tenant_id, role_id, accepted_at, expires_at FROM tenant_invitations WHERE token_hash = $1 AND accepted_at IS NULL"#
@@ -383,9 +379,24 @@ async fn remove_member(
     }
 }
 
+fn sha256_hex(input: &[u8]) -> String {
+    let digest = Sha256::digest(input);
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest.iter() {
+        use std::fmt::Write;
+        let _ = write!(out, "{:02x}", byte);
+    }
+    out
+}
+
 fn generate_token() -> String {
-    use rand::TryRngCore;
+    use rand::TryRng;
     let mut bytes = [0u8; 32];
-    rand::rngs::OsRng.try_fill_bytes(&mut bytes).unwrap();
+    // SysRng is the OS RNG in rand 0.10 (renamed from OsRng). If the OS RNG
+    // is unavailable we cannot proceed safely; this matches the previous
+    // behaviour which also panicked on failure.
+    rand::rngs::SysRng
+        .try_fill_bytes(&mut bytes)
+        .expect("OS RNG must be available to generate invitation tokens");
     base64_url::encode(&bytes)
 }

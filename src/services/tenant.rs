@@ -65,14 +65,14 @@ impl TenantSchemaService {
     #[allow(dead_code)]
     pub async fn ensure_tenant_schema(&self, tenant_id: Uuid) -> Result<(), AppError> {
         let schema_name = Self::schema_name(tenant_id);
-        let create_statement = format!(r#"CREATE SCHEMA IF NOT EXISTS \"{schema_name}\""#);
+        let create_statement = format!("CREATE SCHEMA IF NOT EXISTS \"{schema_name}\"");
 
         let mut connection = self.pool.acquire().await?;
         sqlx::query(&create_statement)
             .execute(&mut *connection)
             .await?;
 
-        let search_path_statement = format!(r#"SET search_path TO \"{schema_name}\", public"#);
+        let search_path_statement = format!("SET search_path TO \"{schema_name}\", public");
         sqlx::query(&search_path_statement)
             .execute(&mut *connection)
             .await?;
