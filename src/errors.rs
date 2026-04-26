@@ -114,6 +114,10 @@ impl AppError {
             StatusCode::INTERNAL_SERVER_ERROR,
         )
     }
+
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        Self::new("BAD_REQUEST", message, StatusCode::BAD_REQUEST)
+    }
 }
 
 impl IntoResponse for AppError {

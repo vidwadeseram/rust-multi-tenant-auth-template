@@ -76,6 +76,31 @@ impl TokenService {
         format!("{:x}", hasher.finalize())
     }
 
+    pub fn create_verification_token(
+        &self,
+        user_id: Uuid,
+        email: &str,
+    ) -> Result<String, AppError> {
+        let issued_at = Utc::now();
+        let expires_at = issued_at + Duration::days(1);
+        let claims = Claims {
+            sub: user_id.to_string(),
+            exp: expires_at.timestamp() as usize,
+            iat: issued_at.timestamp() as usize,
+            jti: Uuid::new_v4().to_string(),
+            token_type: "verification".to_string(),
+            tenant_id: None,
+            email: Some(email.to_string()),
+        };
+
+        encode(
+            &Header::new(self.algorithm()?),
+            &claims,
+            &EncodingKey::from_secret(self.settings.jwt_secret.as_bytes()),
+        )
+        .map_err(|_| AppError::internal("Failed to issue verification token."))
+    }
+
     fn encode_claims(
         &self,
         user_id: Uuid,

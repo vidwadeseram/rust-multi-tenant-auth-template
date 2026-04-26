@@ -98,3 +98,23 @@ pub struct TokenPairResponseData {
 pub struct MessageResponse {
     pub message: String,
 }
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct VerifyEmailRequest {
+    #[validate(length(min = 1))]
+    pub token: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ForgotPasswordRequest {
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ResetPasswordRequest {
+    #[validate(length(min = 1))]
+    pub token: String,
+    #[validate(length(min = 8, max = 128))]
+    pub new_password: String,
+}
