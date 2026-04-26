@@ -1,6 +1,9 @@
 use crate::{
     middleware::auth::{AuthUser, require_auth},
-    models::user::{LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest},
+    models::user::{
+        ForgotPasswordRequest, LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest,
+        ResetPasswordRequest, VerifyEmailRequest,
+    },
     response::{created, ok},
     state::AppState,
 };
@@ -22,6 +25,9 @@ pub fn auth_routes(state: AppState) -> Router<AppState> {
         .route("/login", post(login))
         .route("/refresh", post(refresh))
         .route("/logout", post(logout))
+        .route("/verify-email", post(verify_email))
+        .route("/forgot-password", post(forgot_password))
+        .route("/reset-password", post(reset_password))
         .merge(protected)
 }
 
@@ -56,6 +62,27 @@ async fn logout(State(state): State<AppState>, Json(request): Json<LogoutRequest
 
 async fn me(State(state): State<AppState>, Extension(auth_user): Extension<AuthUser>) -> Response {
     match state.auth_service.me(auth_user.user_id).await {
+        Ok(response) => ok(response).into_response(),
+        Err(error) => error.into_response(),
+    }
+}
+
+async fn verify_email(State(state): State<AppState>, Json(request): Json<VerifyEmailRequest>) -> Response {
+    match state.auth_service.verify_email(&request.token).await {
+        Ok(response) => ok(response).into_response(),
+        Err(error) => error.into_response(),
+    }
+}
+
+async fn forgot_password(State(state): State<AppState>, Json(request): Json<ForgotPasswordRequest>) -> Response {
+    match state.auth_service.forgot_password(&request.email).await {
+        Ok(response) => ok(response).into_response(),
+        Err(error) => error.into_response(),
+    }
+}
+
+async fn reset_password(State(state): State<AppState>, Json(request): Json<ResetPasswordRequest>) -> Response {
+    match state.auth_service.reset_password(&request.token, &request.new_password).await {
         Ok(response) => ok(response).into_response(),
         Err(error) => error.into_response(),
     }
