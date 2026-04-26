@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -10,4 +10,12 @@ pub struct Role {
     pub name: String,
     pub description: String,
     pub created_at: DateTime<Utc>,
+}
+
+impl Role {
+    pub async fn all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as::<_, Self>("SELECT id, name, description, created_at FROM roles ORDER BY name")
+            .fetch_all(pool)
+            .await
+    }
 }
