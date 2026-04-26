@@ -2,9 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
 
 jobs:
   test:
@@ -22,12 +21,12 @@ jobs:
       - name: Run curl tests
         run: |
           chmod +x tests/test_api.sh
-          bash tests/test_api.sh http://localhost:8004/api/v1 || true
+          bash tests/test_api.sh http://localhost:8000/api/v1 || true
 
       - name: Show app logs on failure
         if: failure()
-        run: docker compose logs app
+        run: docker compose logs app 2>/dev/null || docker compose logs 2>/dev/null
 
       - name: Tear down
         if: always()
-        run: docker compose down
+        run: docker compose down 2>/dev/null || true
