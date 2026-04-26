@@ -21,20 +21,29 @@ INSERT INTO permissions (name, description) VALUES
     ('users.read', 'View users'),
     ('users.write', 'Create and update users'),
     ('users.delete', 'Delete users'),
-    ('roles.manage', 'Manage roles and permissions')
+    ('roles.manage', 'Manage roles and permissions'),
+    ('tenant:create', 'Create tenants'),
+    ('tenant:manage', 'Manage tenant roles and members'),
+    ('tenant:invite', 'Invite users to tenants'),
+    ('tenant:members:read', 'View tenant members')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
-WHERE r.name = 'super_admin' AND p.name IN ('users.read', 'users.write', 'users.delete', 'roles.manage')
+WHERE r.name = 'super_admin' AND p.name IN ('users.read', 'users.write', 'users.delete', 'roles.manage', 'tenant:create', 'tenant:manage', 'tenant:invite', 'tenant:members:read')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
-WHERE r.name = 'admin' AND p.name IN ('users.read', 'users.write')
+WHERE r.name = 'admin' AND p.name IN ('users.read', 'users.write', 'tenant:create', 'tenant:manage', 'tenant:invite', 'tenant:members:read')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
-WHERE r.name = 'user' AND p.name = 'users.read'
+WHERE r.name = 'tenant_admin' AND p.name IN ('users.read', 'users.write', 'tenant:manage', 'tenant:invite', 'tenant:members:read')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.name = 'tenant_member' AND p.name IN ('users.read', 'tenant:members:read')
 ON CONFLICT DO NOTHING;
