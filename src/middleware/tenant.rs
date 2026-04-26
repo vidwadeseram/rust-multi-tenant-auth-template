@@ -15,14 +15,7 @@ pub async fn resolve_tenant_context(
         .headers()
         .get("X-Tenant-ID")
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .or_else(|| {
-            bearer_token(request.headers())
-                .ok()
-                .and_then(|token| state.token_service.decode_token(&token).ok())
-                .and_then(|claims| claims.tenant_id)
-                .and_then(|value| Uuid::parse_str(&value).ok())
-        });
+        .and_then(|value| Uuid::parse_str(value).ok());
 
     if let Some(tenant_id) = tenant_id {
         let user_id = bearer_token(request.headers())

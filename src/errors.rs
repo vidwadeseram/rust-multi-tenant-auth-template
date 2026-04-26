@@ -114,6 +114,22 @@ impl AppError {
             StatusCode::INTERNAL_SERVER_ERROR,
         )
     }
+
+    pub fn forbidden(message: &str) -> Self {
+        Self::new("FORBIDDEN", message, StatusCode::FORBIDDEN)
+    }
+
+    pub fn not_found(message: &str) -> Self {
+        Self::new("NOT_FOUND", message, StatusCode::NOT_FOUND)
+    }
+
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        Self::new("BAD_REQUEST", message, StatusCode::BAD_REQUEST)
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new("CONFLICT", message, StatusCode::CONFLICT)
+    }
 }
 
 impl IntoResponse for AppError {
