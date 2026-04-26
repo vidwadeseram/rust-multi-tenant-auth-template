@@ -1,6 +1,7 @@
 use crate::{
     config::Settings,
     errors::AppError,
+    mailer::Mailer,
     models::{
         refresh_token::RefreshToken,
         user::{
@@ -25,6 +26,7 @@ pub struct AuthService {
     settings: Settings,
     token_service: TokenService,
     tenant_service: TenantSchemaService,
+    mailer: Mailer,
 }
 
 impl AuthService {
@@ -33,12 +35,14 @@ impl AuthService {
         settings: Settings,
         token_service: TokenService,
         tenant_service: TenantSchemaService,
+        mailer: Mailer,
     ) -> Self {
         Self {
             pool,
             settings,
             token_service,
             tenant_service,
+            mailer,
         }
     }
 
@@ -75,6 +79,26 @@ impl AuthService {
             .tenant_service
             .create_tenant_record(user.id, &tenant_name, &slug, tenant_admin_role_id)
             .await?;
+
+        let verification_token = self
+            .token_service
+            .create_verification_token(user.id, &user.email)?;
+
+        let mailer = self.mailer.clone();
+        let email = user.email.clone();
+        let first_name = user.first_name.clone();
+        tokio::spawn(async move {
+            mailer
+                .send_email(
+                    &email,
+                    "Verify your account",
+                    &format!(
+                        "Welcome {}, your verification token is: {}",
+                        first_name, verification_token
+                    ),
+                )
+                .await;
+        });
 
         Ok(RegisterResponseData {
             user: user.into_response(Some(tenant.id)),
@@ -333,9 +357,22 @@ impl AuthService {
                 });
             }
         };
-        let _reset_token = self
+        let reset_token = self
             .token_service
             .create_verification_token(user.id, &user.email)?;
+
+        let mailer = self.mailer.clone();
+        let email = user.email.clone();
+        tokio::spawn(async move {
+            mailer
+                .send_email(
+                    &email,
+                    "Password Reset",
+                    &format!("Your password reset token is: {}", reset_token),
+                )
+                .await;
+        });
+
         Ok(MessageResponse {
             message: "If an account with that email exists, a reset link has been sent."
                 .to_string(),
