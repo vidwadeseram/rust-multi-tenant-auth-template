@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker compose build
+
+      - name: Start services
+        run: docker compose up -d
+
+      - name: Wait for app
+        run: sleep 15
+
+      - name: Run curl tests
+        run: |
+          chmod +x tests/test_api.sh
+          bash tests/test_api.sh http://localhost:8004/api/v1
+
+      - name: Tear down
+        if: always()
+        run: docker compose down
