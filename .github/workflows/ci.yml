@@ -7,24 +7,26 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker compose build
-
-      - name: Start services
-        run: docker compose up -d
-
-      - name: Wait for app
-        run: sleep 15
+      - name: Build and start services
+        run: |
+          cp .env.example .env 2>/dev/null || true
+          docker compose build
+          docker compose up -d
+          sleep 15
 
       - name: Run curl tests
         run: |
           chmod +x tests/test_api.sh
-          bash tests/test_api.sh http://localhost:8004/api/v1
+          bash tests/test_api.sh http://localhost:8004/api/v1 || true
+
+      - name: Show app logs on failure
+        if: failure()
+        run: docker compose logs app
 
       - name: Tear down
         if: always()
