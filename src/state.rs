@@ -6,6 +6,7 @@ use sqlx::PgPool;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub pool: PgPool,
     pub token_service: TokenService,
     pub auth_service: AuthService,
     pub tenant_schema_service: TenantSchemaService,
@@ -26,6 +27,7 @@ impl AppState {
         );
 
         Self {
+            pool,
             token_service,
             auth_service,
             tenant_schema_service,
