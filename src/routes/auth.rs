@@ -67,22 +67,35 @@ async fn me(State(state): State<AppState>, Extension(auth_user): Extension<AuthU
     }
 }
 
-async fn verify_email(State(state): State<AppState>, Json(request): Json<VerifyEmailRequest>) -> Response {
+async fn verify_email(
+    State(state): State<AppState>,
+    Json(request): Json<VerifyEmailRequest>,
+) -> Response {
     match state.auth_service.verify_email(&request.token).await {
         Ok(response) => ok(response).into_response(),
         Err(error) => error.into_response(),
     }
 }
 
-async fn forgot_password(State(state): State<AppState>, Json(request): Json<ForgotPasswordRequest>) -> Response {
+async fn forgot_password(
+    State(state): State<AppState>,
+    Json(request): Json<ForgotPasswordRequest>,
+) -> Response {
     match state.auth_service.forgot_password(&request.email).await {
         Ok(response) => ok(response).into_response(),
         Err(error) => error.into_response(),
     }
 }
 
-async fn reset_password(State(state): State<AppState>, Json(request): Json<ResetPasswordRequest>) -> Response {
-    match state.auth_service.reset_password(&request.token, &request.new_password).await {
+async fn reset_password(
+    State(state): State<AppState>,
+    Json(request): Json<ResetPasswordRequest>,
+) -> Response {
+    match state
+        .auth_service
+        .reset_password(&request.token, &request.new_password)
+        .await
+    {
         Ok(response) => ok(response).into_response(),
         Err(error) => error.into_response(),
     }

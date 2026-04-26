@@ -22,11 +22,13 @@ impl UserRole {
             .execute(&mut *transaction)
             .await?;
 
-        sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-            .bind(user_id)
-            .bind(role_id)
-            .execute(&mut *transaction)
-            .await?;
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(user_id)
+        .bind(role_id)
+        .execute(&mut *transaction)
+        .await?;
 
         transaction.commit().await?;
         Ok(())

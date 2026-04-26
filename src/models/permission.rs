@@ -12,16 +12,20 @@ pub struct Permission {
 
 impl Permission {
     pub async fn all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as::<_, Self>("SELECT id, name, description, created_at FROM permissions ORDER BY name")
-            .fetch_all(pool)
-            .await
+        sqlx::query_as::<_, Self>(
+            "SELECT id, name, description, created_at FROM permissions ORDER BY name",
+        )
+        .fetch_all(pool)
+        .await
     }
 
     pub async fn find_by_name(pool: &PgPool, name: &str) -> Result<Option<Self>, sqlx::Error> {
-        sqlx::query_as::<_, Self>("SELECT id, name, description, created_at FROM permissions WHERE name = $1")
-            .bind(name)
-            .fetch_optional(pool)
-            .await
+        sqlx::query_as::<_, Self>(
+            "SELECT id, name, description, created_at FROM permissions WHERE name = $1",
+        )
+        .bind(name)
+        .fetch_optional(pool)
+        .await
     }
 
     pub async fn find_by_user_id(
@@ -119,7 +123,11 @@ impl Permission {
         .await
     }
 
-    pub async fn assign_to_role(pool: &PgPool, role_id: Uuid, permission_id: Uuid) -> Result<(), sqlx::Error> {
+    pub async fn assign_to_role(
+        pool: &PgPool,
+        role_id: Uuid,
+        permission_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
             .bind(role_id)
             .bind(permission_id)
@@ -128,7 +136,11 @@ impl Permission {
         Ok(())
     }
 
-    pub async fn remove_from_role(pool: &PgPool, role_id: Uuid, permission_id: Uuid) -> Result<(), sqlx::Error> {
+    pub async fn remove_from_role(
+        pool: &PgPool,
+        role_id: Uuid,
+        permission_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2")
             .bind(role_id)
             .bind(permission_id)

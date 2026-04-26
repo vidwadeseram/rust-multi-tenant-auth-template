@@ -1,13 +1,12 @@
 use axum::{
-    Extension,
+    Extension, Json, Router,
     extract::{Path, State},
-    routing::{delete, get, patch, post},
-    Json, Router,
     response::{IntoResponse, Response},
+    routing::{delete, get, patch, post},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
@@ -28,11 +27,18 @@ pub fn tenant_routes() -> Router<AppState> {
         .route("/{tenant_id}/members", get(list_members))
         .route("/{tenant_id}/invitations", post(invite_member))
         .route("/{tenant_id}/invitations/accept", post(accept_invitation))
-        .route("/{tenant_id}/members/{user_id}/role", patch(update_member_role))
+        .route(
+            "/{tenant_id}/members/{user_id}/role",
+            patch(update_member_role),
+        )
         .route("/{tenant_id}/members/{user_id}", delete(remove_member))
 }
 
-async fn require_tenant_admin(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+async fn require_tenant_admin(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
     let result = sqlx::query_as::<_, (Uuid, String)>(
         r#"SELECT tm.role_id, r.name FROM tenant_members tm JOIN roles r ON r.id = tm.role_id WHERE tm.tenant_id = $1 AND tm.user_id = $2 AND tm.is_active = TRUE"#
     )
@@ -44,11 +50,17 @@ async fn require_tenant_admin(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uui
 
     match result {
         Some((_, role_name)) if role_name == "tenant_admin" || role_name == "super_admin" => Ok(()),
-        _ => Err(AppError::forbidden("Only tenant admins can perform this action.")),
+        _ => Err(AppError::forbidden(
+            "Only tenant admins can perform this action.",
+        )),
     }
 }
 
-async fn require_membership(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+async fn require_membership(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
     let is_member = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM tenant_members WHERE tenant_id = $1 AND user_id = $2 AND is_active = TRUE)"
     )
@@ -76,7 +88,15 @@ struct TenantOut {
 }
 
 fn tenant_to_out(t: &Tenant) -> TenantOut {
-    TenantOut { id: t.id, name: t.name.clone(), slug: t.slug.clone(), owner_id: t.owner_id, is_active: t.is_active, created_at: t.created_at, updated_at: t.updated_at }
+    TenantOut {
+        id: t.id,
+        name: t.name.clone(),
+        slug: t.slug.clone(),
+        owner_id: t.owner_id,
+        is_active: t.is_active,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+    }
 }
 
 #[derive(Serialize)]
@@ -124,17 +144,25 @@ async fn create_tenant(
     Extension(auth): Extension<AuthUser>,
     Json(payload): Json<CreateTenantReq>,
 ) -> Response {
-    let tenant_admin_role_id = match state.tenant_schema_service.role_id_by_name("tenant_admin").await {
+    let tenant_admin_role_id = match state
+        .tenant_schema_service
+        .role_id_by_name("tenant_admin")
+        .await
+    {
         Ok(id) => id,
         Err(e) => return e.into_response(),
     };
 
-    match state.tenant_schema_service.create_tenant_record(
-        auth.user_id,
-        &payload.name,
-        &payload.slug.to_lowercase(),
-        tenant_admin_role_id,
-    ).await {
+    match state
+        .tenant_schema_service
+        .create_tenant_record(
+            auth.user_id,
+            &payload.name,
+            &payload.slug.to_lowercase(),
+            tenant_admin_role_id,
+        )
+        .await
+    {
         Ok(tenant) => created(tenant_to_out(&tenant)).into_response(),
         Err(e) => AppError::from(e).into_response(),
     }
@@ -149,11 +177,12 @@ async fn list_my_tenants(
            FROM tenants t
            JOIN tenant_members tm ON tm.tenant_id = t.id
            WHERE tm.user_id = $1 AND tm.is_active = TRUE AND t.is_active = TRUE
-           ORDER BY t.created_at DESC"#
+           ORDER BY t.created_at DESC"#,
     )
     .bind(auth.user_id)
     .fetch_all(&state.pool)
-    .await {
+    .await
+    {
         Ok(tenants) => ok(tenants.iter().map(tenant_to_out).collect::<Vec<_>>()).into_response(),
         Err(e) => AppError::from(e).into_response(),
     }
@@ -190,11 +219,17 @@ async fn update_tenant(
     }
     if let Some(ref name) = payload.name {
         let _ = sqlx::query("UPDATE tenants SET name = $1, updated_at = NOW() WHERE id = $2")
-            .bind(name).bind(tenant_id).execute(&state.pool).await;
+            .bind(name)
+            .bind(tenant_id)
+            .execute(&state.pool)
+            .await;
     }
     if let Some(is_active) = payload.is_active {
         let _ = sqlx::query("UPDATE tenants SET is_active = $1, updated_at = NOW() WHERE id = $2")
-            .bind(is_active).bind(tenant_id).execute(&state.pool).await;
+            .bind(is_active)
+            .bind(tenant_id)
+            .execute(&state.pool)
+            .await;
     }
     match sqlx::query_as::<_, Tenant>(
         "SELECT id, name, slug, owner_id, is_active, created_at, updated_at FROM tenants WHERE id = $1"
@@ -216,7 +251,10 @@ async fn delete_tenant(
         return e.into_response();
     }
     match sqlx::query("UPDATE tenants SET is_active = FALSE, updated_at = NOW() WHERE id = $1")
-        .bind(tenant_id).execute(&state.pool).await {
+        .bind(tenant_id)
+        .execute(&state.pool)
+        .await
+    {
         Ok(_) => ok(serde_json::json!({"message": "Tenant deactivated."})).into_response(),
         Err(e) => AppError::from(e).into_response(),
     }
@@ -257,9 +295,14 @@ async fn invite_member(
     if let Err(e) = require_tenant_admin(&state.pool, tenant_id, auth.user_id).await {
         return e.into_response();
     }
-    match sqlx::query_as::<_, Role>("SELECT id, name, description, created_at FROM roles WHERE id = $1")
-        .bind(payload.role_id).fetch_optional(&state.pool).await {
-        Ok(Some(_)) => {},
+    match sqlx::query_as::<_, Role>(
+        "SELECT id, name, description, created_at FROM roles WHERE id = $1",
+    )
+    .bind(payload.role_id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        Ok(Some(_)) => {}
         Ok(None) => return AppError::not_found("Role not found.").into_response(),
         Err(e) => return AppError::from(e).into_response(),
     }
@@ -270,7 +313,7 @@ async fn invite_member(
 
     match sqlx::query_scalar::<_, Uuid>(
         r#"INSERT INTO tenant_invitations (id, tenant_id, email, role_id, token_hash, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id"#
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id"#,
     )
     .bind(Uuid::new_v4())
     .bind(tenant_id)
@@ -279,7 +322,8 @@ async fn invite_member(
     .bind(&token_hash)
     .bind(expires_at)
     .fetch_one(&state.pool)
-    .await {
+    .await
+    {
         Ok(inv_id) => ok(serde_json::json!({
             "id": inv_id.to_string(),
             "tenant_id": tenant_id.to_string(),
@@ -287,7 +331,8 @@ async fn invite_member(
             "role_id": payload.role_id.to_string(),
             "expires_at": expires_at.to_rfc3339(),
             "token": raw_token,
-        })).into_response(),
+        }))
+        .into_response(),
         Err(e) => AppError::from(e).into_response(),
     }
 }
@@ -317,7 +362,9 @@ async fn accept_invitation(
     }
 
     let _ = sqlx::query("UPDATE tenant_invitations SET accepted_at = NOW() WHERE id = $1")
-        .bind(inv_id).execute(&state.pool).await;
+        .bind(inv_id)
+        .execute(&state.pool)
+        .await;
 
     let already = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM tenant_members WHERE tenant_id = $1 AND user_id = $2 AND is_active = TRUE)"

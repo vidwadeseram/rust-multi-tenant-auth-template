@@ -1,9 +1,8 @@
 use axum::{
-    Extension,
+    Extension, Json, Router,
     extract::{Path, State},
-    routing::{get, patch, post},
-    Json, Router,
     response::{IntoResponse, Response},
+    routing::{get, patch, post},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -14,10 +13,7 @@ use crate::{
     errors::AppError,
     middleware::auth::AuthUser,
     models::{
-        permission::Permission,
-        role::Role,
-        user::User,
-        user_role::UserRole as UserRoleModel,
+        permission::Permission, role::Role, user::User, user_role::UserRole as UserRoleModel,
     },
     response::ok,
     services::tenant::TenantContext,
@@ -63,7 +59,11 @@ fn tenant_scope(context: &Option<Extension<TenantContext>>) -> Option<Uuid> {
     context.as_ref().map(|Extension(context)| context.tenant_id)
 }
 
-fn tenant_permissions(tenant_id: Option<Uuid>, global_permission: &'static str, tenant_permission: &'static str) -> Vec<&'static str> {
+fn tenant_permissions(
+    tenant_id: Option<Uuid>,
+    global_permission: &'static str,
+    tenant_permission: &'static str,
+) -> Vec<&'static str> {
     if tenant_id.is_some() {
         vec![global_permission, tenant_permission]
     } else {
@@ -125,16 +125,46 @@ async fn fetch_user(
 }
 
 #[derive(Serialize)]
-struct RoleOut { id: Uuid, name: String, description: String, created_at: DateTime<Utc> }
+struct RoleOut {
+    id: Uuid,
+    name: String,
+    description: String,
+    created_at: DateTime<Utc>,
+}
 
 #[derive(Serialize)]
-struct PermOut { id: Uuid, name: String, description: String, created_at: DateTime<Utc> }
+struct PermOut {
+    id: Uuid,
+    name: String,
+    description: String,
+    created_at: DateTime<Utc>,
+}
 
 #[derive(Serialize)]
-struct UserOut { id: Uuid, email: String, first_name: String, last_name: String, is_active: bool, is_verified: bool, tenant_id: Option<Uuid>, created_at: DateTime<Utc>, updated_at: DateTime<Utc> }
+struct UserOut {
+    id: Uuid,
+    email: String,
+    first_name: String,
+    last_name: String,
+    is_active: bool,
+    is_verified: bool,
+    tenant_id: Option<Uuid>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
 
 fn user_to_out(u: &User, tenant_id: Option<Uuid>) -> UserOut {
-    UserOut { id: u.id, email: u.email.clone(), first_name: u.first_name.clone(), last_name: u.last_name.clone(), is_active: u.is_active, is_verified: u.is_verified, tenant_id, created_at: u.created_at, updated_at: u.updated_at }
+    UserOut {
+        id: u.id,
+        email: u.email.clone(),
+        first_name: u.first_name.clone(),
+        last_name: u.last_name.clone(),
+        is_active: u.is_active,
+        is_verified: u.is_verified,
+        tenant_id,
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+    }
 }
 
 async fn list_roles(
@@ -161,12 +191,16 @@ async fn list_roles_inner(
         None => Role::global_roles(&state.pool).await?,
     };
 
-    Ok(ok(roles.into_iter().map(|role| RoleOut {
-        id: role.id,
-        name: role.name,
-        description: role.description,
-        created_at: role.created_at,
-    }).collect::<Vec<_>>()).into_response())
+    Ok(ok(roles
+        .into_iter()
+        .map(|role| RoleOut {
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            created_at: role.created_at,
+        })
+        .collect::<Vec<_>>())
+    .into_response())
 }
 
 async fn list_permissions(
@@ -189,12 +223,16 @@ async fn list_permissions_inner(
     require_any_perm(&state.pool, user_id, tenant_id, &permissions).await?;
 
     let all_permissions = Permission::all(&state.pool).await?;
-    Ok(ok(all_permissions.into_iter().map(|permission| PermOut {
-        id: permission.id,
-        name: permission.name,
-        description: permission.description,
-        created_at: permission.created_at,
-    }).collect::<Vec<_>>()).into_response())
+    Ok(ok(all_permissions
+        .into_iter()
+        .map(|permission| PermOut {
+            id: permission.id,
+            name: permission.name,
+            description: permission.description,
+            created_at: permission.created_at,
+        })
+        .collect::<Vec<_>>())
+    .into_response())
 }
 
 async fn get_role_permissions(
@@ -224,12 +262,16 @@ async fn get_role_permissions_inner(
     ensure_role_matches_scope(&role, tenant_id)?;
 
     let role_permissions = Permission::find_by_role_id(&state.pool, role_id).await?;
-    Ok(ok(role_permissions.into_iter().map(|permission| PermOut {
-        id: permission.id,
-        name: permission.name,
-        description: permission.description,
-        created_at: permission.created_at,
-    }).collect::<Vec<_>>()).into_response())
+    Ok(ok(role_permissions
+        .into_iter()
+        .map(|permission| PermOut {
+            id: permission.id,
+            name: permission.name,
+            description: permission.description,
+            created_at: permission.created_at,
+        })
+        .collect::<Vec<_>>())
+    .into_response())
 }
 
 async fn assign_permission_to_role(
@@ -311,7 +353,11 @@ async fn list_users_inner(
         .await?,
     };
 
-    Ok(ok(users.iter().map(|user| user_to_out(user, tenant_id)).collect::<Vec<_>>()).into_response())
+    Ok(ok(users
+        .iter()
+        .map(|user| user_to_out(user, tenant_id))
+        .collect::<Vec<_>>())
+    .into_response())
 }
 
 async fn get_user(
@@ -346,8 +392,14 @@ async fn update_user(
     Path(user_id): Path<Uuid>,
     Json(payload): Json<UserUpdateReq>,
 ) -> Response {
-    match update_user_inner(&state, auth.user_id, tenant_scope(&tenant_context), user_id, payload)
-        .await
+    match update_user_inner(
+        &state,
+        auth.user_id,
+        tenant_scope(&tenant_context),
+        user_id,
+        payload,
+    )
+    .await
     {
         Ok(response) => response,
         Err(error) => error.into_response(),
@@ -389,8 +441,13 @@ async fn get_user_permissions(
     tenant_context: Option<Extension<TenantContext>>,
     Path(target_id): Path<Uuid>,
 ) -> Response {
-    match get_user_permissions_inner(&state, auth.user_id, tenant_scope(&tenant_context), target_id)
-        .await
+    match get_user_permissions_inner(
+        &state,
+        auth.user_id,
+        tenant_scope(&tenant_context),
+        target_id,
+    )
+    .await
     {
         Ok(response) => response,
         Err(error) => error.into_response(),
@@ -408,12 +465,16 @@ async fn get_user_permissions_inner(
 
     let _ = fetch_user(&state.pool, target_id, tenant_id).await?;
     let user_permissions = Permission::find_by_user_id(&state.pool, target_id, tenant_id).await?;
-    Ok(ok(user_permissions.into_iter().map(|permission| PermOut {
-        id: permission.id,
-        name: permission.name,
-        description: permission.description,
-        created_at: permission.created_at,
-    }).collect::<Vec<_>>()).into_response())
+    Ok(ok(user_permissions
+        .into_iter()
+        .map(|permission| PermOut {
+            id: permission.id,
+            name: permission.name,
+            description: permission.description,
+            created_at: permission.created_at,
+        })
+        .collect::<Vec<_>>())
+    .into_response())
 }
 
 async fn assign_role_to_user(
@@ -441,8 +502,20 @@ async fn assign_role_to_user_inner(
 
     match tenant_id {
         Some(tenant_id) => {
-            require_any_perm(&state.pool, auth_user_id, Some(tenant_id), &["roles.manage", "tenant:manage"]).await?;
-            let updated = UserRoleModel::assign_tenant(&state.pool, tenant_id, payload.user_id, payload.role_id).await?;
+            require_any_perm(
+                &state.pool,
+                auth_user_id,
+                Some(tenant_id),
+                &["roles.manage", "tenant:manage"],
+            )
+            .await?;
+            let updated = UserRoleModel::assign_tenant(
+                &state.pool,
+                tenant_id,
+                payload.user_id,
+                payload.role_id,
+            )
+            .await?;
             if !updated {
                 return Err(AppError::not_found("User not found in tenant."));
             }
@@ -458,10 +531,20 @@ async fn assign_role_to_user_inner(
 }
 
 #[derive(Deserialize)]
-struct RolePermReq { role_id: Uuid, permission_id: Uuid }
+struct RolePermReq {
+    role_id: Uuid,
+    permission_id: Uuid,
+}
 
 #[derive(Deserialize)]
-struct UserRoleReq { user_id: Uuid, role_id: Uuid }
+struct UserRoleReq {
+    user_id: Uuid,
+    role_id: Uuid,
+}
 
 #[derive(Deserialize)]
-struct UserUpdateReq { first_name: Option<String>, last_name: Option<String>, is_active: Option<bool> }
+struct UserUpdateReq {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    is_active: Option<bool>,
+}

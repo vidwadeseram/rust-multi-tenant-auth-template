@@ -45,8 +45,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/docs", get(swagger_ui))
         .merge(health_routes())
         .nest("/api/v1/auth", auth_routes(state.clone()))
-        .nest("/api/v1/admin", admin::admin_routes().layer(from_fn_with_state(state.clone(), require_auth)))
-        .nest("/api/v1/tenants", tenant::tenant_routes().layer(from_fn_with_state(state.clone(), require_auth)))
+        .nest(
+            "/api/v1/admin",
+            admin::admin_routes().layer(from_fn_with_state(state.clone(), require_auth)),
+        )
+        .nest(
+            "/api/v1/tenants",
+            tenant::tenant_routes().layer(from_fn_with_state(state.clone(), require_auth)),
+        )
         .layer(from_fn_with_state(state.clone(), resolve_tenant_context))
         .layer(TraceLayer::new_for_http())
         .with_state(state);

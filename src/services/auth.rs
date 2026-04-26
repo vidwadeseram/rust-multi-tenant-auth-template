@@ -308,8 +308,8 @@ impl AuthService {
         if claims.token_type != "verification" {
             return Err(AppError::bad_request("Invalid token type."));
         }
-        let user_id = Uuid::parse_str(&claims.sub)
-            .map_err(|_| AppError::bad_request("Invalid token."))?;
+        let user_id =
+            Uuid::parse_str(&claims.sub).map_err(|_| AppError::bad_request("Invalid token."))?;
         let user = self.user_by_id(user_id).await?;
         if user.is_verified {
             return Err(AppError::bad_request("Email is already verified."));
@@ -326,23 +326,33 @@ impl AuthService {
     pub async fn forgot_password(&self, email: &str) -> Result<MessageResponse, AppError> {
         let user = match self.user_by_email(email).await {
             Ok(u) => u,
-            Err(_) => return Ok(MessageResponse {
-                message: "If an account with that email exists, a reset link has been sent.".to_string(),
-            }),
+            Err(_) => {
+                return Ok(MessageResponse {
+                    message: "If an account with that email exists, a reset link has been sent."
+                        .to_string(),
+                });
+            }
         };
-        let _reset_token = self.token_service.create_verification_token(user.id, &user.email)?;
+        let _reset_token = self
+            .token_service
+            .create_verification_token(user.id, &user.email)?;
         Ok(MessageResponse {
-            message: "If an account with that email exists, a reset link has been sent.".to_string(),
+            message: "If an account with that email exists, a reset link has been sent."
+                .to_string(),
         })
     }
 
-    pub async fn reset_password(&self, token: &str, new_password: &str) -> Result<MessageResponse, AppError> {
+    pub async fn reset_password(
+        &self,
+        token: &str,
+        new_password: &str,
+    ) -> Result<MessageResponse, AppError> {
         let claims = self.token_service.decode_token(token)?;
         if claims.token_type != "verification" {
             return Err(AppError::bad_request("Invalid token type."));
         }
-        let user_id = Uuid::parse_str(&claims.sub)
-            .map_err(|_| AppError::bad_request("Invalid token."))?;
+        let user_id =
+            Uuid::parse_str(&claims.sub).map_err(|_| AppError::bad_request("Invalid token."))?;
         let _user = self.user_by_id(user_id).await?;
         let password_hash = self.hash_password(new_password)?;
         sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")

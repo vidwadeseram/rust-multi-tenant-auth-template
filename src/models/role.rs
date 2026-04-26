@@ -17,9 +17,11 @@ pub struct Role {
 
 impl Role {
     pub async fn all(pool: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as::<_, Self>("SELECT id, name, description, created_at FROM roles ORDER BY name")
-            .fetch_all(pool)
-            .await
+        sqlx::query_as::<_, Self>(
+            "SELECT id, name, description, created_at FROM roles ORDER BY name",
+        )
+        .fetch_all(pool)
+        .await
     }
 
     pub async fn find_by_id(pool: &PgPool, role_id: Uuid) -> Result<Option<Self>, sqlx::Error> {
