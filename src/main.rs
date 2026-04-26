@@ -1,3 +1,53 @@
-fn main() {
-    println!("Hello, world!");
+mod config;
+mod errors;
+mod middleware;
+mod models;
+mod response;
+mod routes;
+mod services;
+mod state;
+
+use axum::{Router, middleware::from_fn_with_state};
+use config::Settings;
+use middleware::tenant::resolve_tenant_context;
+use routes::{auth::auth_routes, health::health_routes};
+use services::tenant::{BASE_MIGRATOR, TenantSchemaService};
+use state::AppState;
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
+use tower_http::trace::TraceLayer;
+use tracing::info;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let settings = Settings::load()?;
+    settings.init_tracing();
+
+    let pool = settings.database_pool().await?;
+    BASE_MIGRATOR.run(&pool).await?;
+
+    let tenant_schema_service = TenantSchemaService::new(pool.clone());
+    let state = AppState::new(pool, settings.clone(), tenant_schema_service);
+
+    let app = Router::<AppState>::new()
+        .merge(health_routes())
+        .nest("/api/v1/auth", auth_routes(state.clone()))
+        .layer(from_fn_with_state(state.clone(), resolve_tenant_context))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+
+    let bind_port = settings.bind_port();
+    let addr = SocketAddr::from(([0, 0, 0, 0], bind_port));
+    let listener = TcpListener::bind(addr).await?;
+    info!(
+        port = bind_port,
+        mode = %settings.multi_tenant_mode,
+        smtp_host = %settings.smtp_host,
+        smtp_port = settings.smtp_port,
+        smtp_sender = %settings.smtp_sender,
+        "server listening"
+    );
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
