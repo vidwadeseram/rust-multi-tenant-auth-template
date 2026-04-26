@@ -126,6 +126,10 @@ impl AppError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new("BAD_REQUEST", message, StatusCode::BAD_REQUEST)
     }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new("CONFLICT", message, StatusCode::CONFLICT)
+    }
 }
 
 impl IntoResponse for AppError {
