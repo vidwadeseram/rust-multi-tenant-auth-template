@@ -192,4 +192,105 @@ mod tests {
             "refresh tokens should remain unique even when issued in the same second"
         );
     }
+
+    #[test]
+    fn issue_token_pair_returns_bearer_type() {
+        let service = TokenService::new(test_settings());
+        let pair = service
+            .issue_token_pair(Uuid::new_v4(), None)
+            .expect("should issue token pair");
+        assert_eq!(pair.token_type, "Bearer");
+    }
+
+    #[test]
+    fn issue_token_pair_expires_in_matches_settings() {
+        let service = TokenService::new(test_settings());
+        let pair = service
+            .issue_token_pair(Uuid::new_v4(), None)
+            .expect("should issue token pair");
+        assert_eq!(pair.expires_in, 15 * 60);
+    }
+
+    #[test]
+    fn decode_token_round_trips_user_id() {
+        let service = TokenService::new(test_settings());
+        let user_id = Uuid::new_v4();
+        let pair = service
+            .issue_token_pair(user_id, None)
+            .expect("should issue token pair");
+        let claims = service
+            .decode_token(&pair.access_token)
+            .expect("should decode access token");
+        assert_eq!(claims.sub, user_id.to_string());
+        assert_eq!(claims.token_type, "access");
+    }
+
+    #[test]
+    fn decode_token_round_trips_tenant_id() {
+        let service = TokenService::new(test_settings());
+        let user_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
+        let pair = service
+            .issue_token_pair(user_id, Some(tenant_id))
+            .expect("should issue token pair");
+        let claims = service
+            .decode_token(&pair.access_token)
+            .expect("should decode access token");
+        assert_eq!(claims.tenant_id, Some(tenant_id.to_string()));
+    }
+
+    #[test]
+    fn decode_token_invalid_returns_error() {
+        let service = TokenService::new(test_settings());
+        let result = service.decode_token("not.a.valid.token");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn hash_token_is_deterministic() {
+        let service = TokenService::new(test_settings());
+        let h1 = service.hash_token("my-token");
+        let h2 = service.hash_token("my-token");
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn hash_token_different_inputs_produce_different_hashes() {
+        let service = TokenService::new(test_settings());
+        let h1 = service.hash_token("token-a");
+        let h2 = service.hash_token("token-b");
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn hash_token_output_is_hex_string() {
+        let service = TokenService::new(test_settings());
+        let hash = service.hash_token("test");
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(hash.len(), 64); // SHA-256 = 32 bytes = 64 hex chars
+    }
+
+    #[test]
+    fn create_verification_token_decodes_with_correct_type() {
+        let service = TokenService::new(test_settings());
+        let user_id = Uuid::new_v4();
+        let token = service
+            .create_verification_token(user_id, "user@example.com")
+            .expect("should create verification token");
+        let claims = service
+            .decode_token(&token)
+            .expect("should decode verification token");
+        assert_eq!(claims.token_type, "verification");
+        assert_eq!(claims.sub, user_id.to_string());
+        assert_eq!(claims.email, Some("user@example.com".to_string()));
+    }
+
+    #[test]
+    fn unsupported_algorithm_returns_error() {
+        let mut settings = test_settings();
+        settings.jwt_algorithm = "RS256".to_string();
+        let service = TokenService::new(settings);
+        let result = service.issue_token_pair(Uuid::new_v4(), None);
+        assert!(result.is_err());
+    }
 }
