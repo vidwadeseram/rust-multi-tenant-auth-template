@@ -449,7 +449,7 @@ fn generate_token() -> Result<String, AppError> {
         .try_fill_bytes(&mut bytes)
         .map_err(|e| {
             tracing::error!("OS RNG unavailable, cannot generate token: {e}");
-            AppError::internal("Failed to generate secure token".into())
+            AppError::internal("Failed to generate secure token")
         })?;
     Ok(base64_url::encode(&bytes))
 }
