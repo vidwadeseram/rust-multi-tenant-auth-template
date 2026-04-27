@@ -50,7 +50,7 @@ jobs:
 
       - name: Run health check
         run: |
-          curl -f http://localhost:8003/health || (docker compose logs && exit 1)
+          curl -f http://localhost:8004/health || (docker compose logs && exit 1)
 
       - name: Tear down
         if: always()
